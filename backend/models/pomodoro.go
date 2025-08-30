@@ -1,4 +1,3 @@
-// models/pomodoro.go
 package models
 
 import (
@@ -9,9 +8,15 @@ import (
 
 type PomodoroSession struct {
 	gorm.Model
-	Phase       string    `json:"phase"`    // 'work', 'short', 'long'
-	Duration    int       `json:"duration"` // duration in minutes
+	Phase       string    `json:"phase"`
+	Duration    int       `json:"duration"`
 	CompletedAt time.Time `json:"completed_at"`
+
+	// New integration fields
+	TaskID     *uint  `json:"task_id"`
+	Task       *Task  `json:"task,omitempty" gorm:"foreignKey:TaskID"`
+	Notes      string `json:"notes"`
+	Productive bool   `json:"productive"`
 }
 
 type PomodoroStats struct {

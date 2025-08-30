@@ -17,12 +17,16 @@ func main() {
 	database.ConnectDatabase()
 	database.DB.AutoMigrate(&models.Task{})
 	database.DB.AutoMigrate(&models.Habit{})
-	database.DB.AutoMigrate(&models.PomodoroSession{}) // Add Pomodoro migration
+	database.DB.AutoMigrate(&models.Event{}) // Your existing event model - now enhanced
+	database.DB.AutoMigrate(&models.PomodoroSession{})
+	database.DB.AutoMigrate(&models.FocusSession{}) // New focus model
 
 	// register routes
 	routes.RegisterTaskRoutes(r)
 	routes.RegisterHabitRoutes(r)
-	routes.RegisterPomodoroRoutes(r) // Add Pomodoro routes
+	routes.RegisterPomodoroRoutes(r)
+	routes.RegisterCalendarRoutes(r)     // New calendar routes
+	routes.RegisterProductivityRoutes(r) // New productivity routes
 
 	r.Run(":8080")
 }
