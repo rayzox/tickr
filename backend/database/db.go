@@ -3,7 +3,6 @@ package database
 import (
 	"log"
 
-	"github.com/rayzox/tickr-backend/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -17,12 +16,5 @@ func ConnectDatabase() {
 	}
 
 	DB = db
-
-	// Auto-migrate the schema
-	err = DB.AutoMigrate(&models.Habit{})
-	if err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
-
-	log.Println("Database connected and migrated successfully")
+	log.Println("Database connected successfully")
 }

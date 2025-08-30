@@ -1,10 +1,21 @@
+// models/pomodoro.go
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type PomodoroSession struct {
 	gorm.Model
-	TaskTitle string `json:"task_title"`
-	Duration  int    `json:"duration"` // in minutes
-	Completed bool   `json:"completed"`
+	Phase       string    `json:"phase"`    // 'work', 'short', 'long'
+	Duration    int       `json:"duration"` // duration in minutes
+	CompletedAt time.Time `json:"completed_at"`
+}
+
+type PomodoroStats struct {
+	CompletedSessions int `json:"completedSessions"`
+	TotalMinutes      int `json:"totalMinutes"`
+	TodaySessions     int `json:"todaySessions"`
 }
