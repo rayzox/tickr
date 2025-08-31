@@ -175,6 +175,7 @@ func ScheduleTask(c *gin.Context) {
 		Title:       "Work on: " + task.Title,
 		Description: task.Description,
 		EventDate:   request.EventDate,
+		Date:        request.EventDate.Format("2006-01-02"), // Make sure to set the Date field
 		Duration:    request.Duration,
 		Priority:    task.Priority,
 		EventType:   "task",
@@ -188,6 +189,9 @@ func ScheduleTask(c *gin.Context) {
 
 	task.CalendarEventID = &event.ID
 	database.DB.Save(&task)
+
+	// Preload related data before returning
+	database.DB.Preload("Task").Preload("Habit").First(&event, event.ID)
 
 	c.JSON(http.StatusOK, event)
 }

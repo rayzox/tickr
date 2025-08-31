@@ -1,11 +1,29 @@
 <template>
   <div class="p-6 bg-gray-100 min-h-screen flex flex-col items-center">
+    <!-- Active Focus Session Banner -->
+    <div v-if="activeFocus" class="w-full max-w-lg mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-4 text-white">
+      <div class="text-sm opacity-90">🎯 Focusing on:</div>
+      <div class="font-bold">{{ activeFocus.task?.title }}</div>
+      <div class="text-sm opacity-75">Started {{ formatTimeAgo(activeFocus.start_time) }}</div>
+    </div>
+
     <!-- Pomodoro Card -->
     <div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-8">
       <!-- Header -->
       <div class="text-center mb-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-2">Pomodoro Timer</h2>
         <p class="text-sm text-gray-500">{{ getCurrentPhase() }}</p>
+      </div>
+
+      <!-- Task Selection for Work Sessions -->
+      <div v-if="currentPhase === 'work' && !isRunning" class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Working on (optional):</label>
+        <select v-model="selectedTaskId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+          <option value="">No specific task</option>
+          <option v-for="task in incompleteTasks" :key="task.ID" :value="task.ID">
+            {{ task.title }} ({{ task.completed_pomodoros || 0 }}/{{ task.estimated_pomodoros || 1 }} 🍅)
+          </option>
+        </select>
       </div>
 
       <!-- Timer Display -->
@@ -96,17 +114,20 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 
 // Timer state
-const currentPhase = ref('work') // 'work', 'short', 'long'
-const timeLeft = ref(25 * 60) // seconds
+const currentPhase = ref('work')
+const timeLeft = ref(25 * 60)
 const isRunning = ref(false)
 const timerId = ref(null)
+const selectedTaskId = ref('')
 
-// Stats
+// Data
 const stats = ref({
   completedSessions: 0,
   totalMinutes: 0,
   todaySessions: 0
 })
+const incompleteTasks = ref([])
+const activeFocus = ref(null)
 
 // Phase durations in seconds
 const phaseDurations = {
@@ -129,6 +150,12 @@ function formatTime(seconds) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+function formatTimeAgo(dateString) {
+  const diff = Date.now() - new Date(dateString).getTime()
+  const minutes = Math.floor(diff / 60000)
+  return `${minutes}m ago`
+}
+
 function getCurrentPhase() {
   const phases = {
     work: 'Focus Time - Stay concentrated!',
@@ -140,9 +167,9 @@ function getCurrentPhase() {
 
 function getPhaseColor() {
   const colors = {
-    work: '#dc2626', // red-600
-    short: '#16a34a', // green-600
-    long: '#2563eb'   // blue-600
+    work: '#dc2626',
+    short: '#16a34a',
+    long: '#2563eb'
   }
   return colors[currentPhase.value]
 }
@@ -191,13 +218,27 @@ function setPhase(phase) {
 async function completeSession() {
   pauseTimer()
   
-  // Save session to backend
   try {
-    await axios.post('http://localhost:8080/pomodoro/sessions', {
+    // Save session to backend with task linking
+    const sessionData = {
       phase: currentPhase.value,
-      duration: phaseDurations[currentPhase.value] / 60, // convert to minutes
-      completed_at: new Date().toISOString()
-    })
+      duration: phaseDurations[currentPhase.value] / 60,
+      completed_at: new Date().toISOString(),
+      productive: true
+    }
+
+    // Link to task if selected
+    if (selectedTaskId.value && currentPhase.value === 'work') {
+      sessionData.task_id = parseInt(selectedTaskId.value)
+      sessionData.notes = `Worked on task during pomodoro session`
+    }
+
+    const res = await axios.post('http://localhost:8080/pomodoro/sessions', sessionData)
+    
+    // Update task pomodoro count if linked
+    if (selectedTaskId.value && currentPhase.value === 'work') {
+      await updateTaskPomodoros(selectedTaskId.value)
+    }
     
     // Update local stats
     stats.value.completedSessions++
@@ -206,7 +247,6 @@ async function completeSession() {
     
     // Auto-transition to next phase
     if (currentPhase.value === 'work') {
-      // After work, check if it's time for long break (every 4 sessions)
       if (stats.value.completedSessions % 4 === 0) {
         setPhase('long')
       } else {
@@ -229,6 +269,20 @@ async function completeSession() {
   }
 }
 
+async function updateTaskPomodoros(taskId) {
+  try {
+    // Fetch current task
+    const res = await axios.get(`http://localhost:8080/tasks`)
+    const task = res.data.find(t => t.ID == taskId)
+    if (task) {
+      task.completed_pomodoros = (task.completed_pomodoros || 0) + 1
+      await axios.put(`http://localhost:8080/tasks/${taskId}`, task)
+    }
+  } catch (error) {
+    console.error('Error updating task pomodoros:', error)
+  }
+}
+
 async function fetchStats() {
   try {
     const res = await axios.get('http://localhost:8080/pomodoro/stats')
@@ -238,12 +292,32 @@ async function fetchStats() {
   }
 }
 
+async function fetchTasks() {
+  try {
+    const res = await axios.get('http://localhost:8080/tasks')
+    incompleteTasks.value = res.data.filter(task => !task.completed)
+  } catch (error) {
+    console.error('Error fetching tasks:', error)
+  }
+}
+
+async function fetchActiveFocus() {
+  try {
+    const res = await axios.get('http://localhost:8080/productivity/focus/active')
+    activeFocus.value = res.data
+  } catch (error) {
+    console.error('Error fetching active focus:', error)
+  }
+}
+
 // Request notification permission
 onMounted(async () => {
   if (Notification.permission === 'default') {
     await Notification.requestPermission()
   }
   await fetchStats()
+  await fetchTasks()
+  await fetchActiveFocus()
 })
 
 onUnmounted(() => {

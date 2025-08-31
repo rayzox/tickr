@@ -24,7 +24,12 @@ func RegisterCalendarRoutes(r *gin.Engine) {
 func GetCalendarEvents(c *gin.Context) {
 	var events []models.Event
 
-	if err := database.DB.Preload("Task").Preload("Habit").Order("event_date ASC").Find(&events).Error; err != nil {
+	// Use Find with proper preloading
+	if err := database.DB.
+		Preload("Task").
+		Preload("Habit").
+		Order("event_date ASC").
+		Find(&events).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events"})
 		return
 	}
@@ -41,7 +46,12 @@ func CreateCalendarEvent(c *gin.Context) {
 
 	// Parse the Date string to EventDate if provided
 	if event.Date != "" {
-		if parsedDate, err := time.Parse("2006-01-02", event.Date); err == nil {
+		// Try parsing with time format including timezone
+		if parsedDate, err := time.Parse(time.RFC3339, event.Date); err == nil {
+			event.EventDate = parsedDate
+		} else if parsedDate, err := time.Parse("2006-01-02T15:04:05", event.Date); err == nil {
+			event.EventDate = parsedDate
+		} else if parsedDate, err := time.Parse("2006-01-02", event.Date); err == nil {
 			event.EventDate = parsedDate
 		}
 	}
@@ -50,6 +60,9 @@ func CreateCalendarEvent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
 		return
 	}
+
+	// Preload related data before returning
+	database.DB.Preload("Task").Preload("Habit").First(&event, event.ID)
 
 	c.JSON(http.StatusOK, event)
 }

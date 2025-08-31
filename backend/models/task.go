@@ -8,11 +8,10 @@ import (
 
 type Task struct {
 	gorm.Model
-	ID        uint   `json:"id"` // Keep your existing ID field
-	Title     string `json:"title"`
-	Completed bool   `json:"completed"`
-	DueDate   string `json:"due_date"` // Keep as string if you prefer
-	Priority  string `json:"priority"`
+	Title     string    `json:"title"`
+	Completed bool      `json:"completed"`
+	DueDate   time.Time `json:"due_date"` // Changed from string to time.Time
+	Priority  string    `json:"priority"`
 
 	// New integration fields
 	Description        string            `json:"description"`

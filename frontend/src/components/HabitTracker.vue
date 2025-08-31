@@ -7,6 +7,9 @@
         <div class="flex items-center gap-3">
           <h2 class="text-xl font-bold text-gray-800">Habits</h2>
         </div>
+        <button @click="scheduleAllHabits" class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+          📅 Schedule All
+        </button>
       </div>
 
       <!-- Add Habit Form -->
@@ -29,9 +32,14 @@
           <div class="flex items-center gap-3">
             <input type="checkbox" v-model="habit.completed_today" @change="updateHabit(habit)" 
                    class="h-5 w-5 rounded border-gray-300 text-indigo-600"/>
-            <span :class="{'line-through text-gray-400': habit.completed_today}" class="font-semibold text-gray-800">
-              {{ habit.name }}
-            </span>
+            <div>
+              <span :class="{'line-through text-gray-400': habit.completed_today}" class="font-semibold text-gray-800">
+                {{ habit.name }}
+              </span>
+              <div v-if="habit.target_time" class="text-xs text-gray-500">
+                ⏰ Best time: {{ habit.target_time }}
+              </div>
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <span v-if="habit.frequency" 
@@ -46,6 +54,9 @@
             <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
               🔥 {{ habit.streak || 0 }}
             </span>
+            <button @click="scheduleHabit(habit)" class="text-blue-500 hover:text-blue-700 text-sm" title="Schedule">
+              📅
+            </button>
             <button @click="deleteHabit(habit.ID)" class="text-red-500 hover:text-red-700 font-bold">
               ✕
             </button>
@@ -67,7 +78,7 @@ const newFrequency = ref("daily")
 async function fetchHabits() {
     try {
         const res = await axios.get("http://localhost:8080/habits")
-        habits.value = res.data.map(h => ({ ...h, streak: h.streak || 0 }))
+        habits.value = res.data?.map(h => ({ ...h, streak: h.streak || 0 })) || []
     } catch (error) {
         console.error("Error fetching habits:", error)
     }
@@ -80,7 +91,9 @@ async function addHabit() {
             name: newHabit.value,
             frequency: newFrequency.value,
             completed_today: false,
-            streak: 0
+            streak: 0,
+            color: getRandomColor(),
+            target_time: "09:00" // Default time
         })
         habits.value.push({ ...res.data, streak: res.data.streak || 0 })
         newHabit.value = ""
@@ -91,15 +104,15 @@ async function addHabit() {
 }
 
 async function updateHabit(habit) {
-    // Update streak logic
+    // Update streak and completion time
     if (habit.completed_today) {
         habit.streak = (habit.streak || 0) + 1
+        habit.last_completed_at = new Date().toISOString()
     } else {
         habit.streak = 0
     }
     
     try {
-        // Use habit.ID consistently (GORM default)
         await axios.put(`http://localhost:8080/habits/${habit.ID}`, habit)
     } catch (error) {
         console.error("Error updating habit:", error)
@@ -118,6 +131,42 @@ async function deleteHabit(id) {
     } catch (error) {
         console.error("Error deleting habit:", error)
     }
+}
+
+async function scheduleHabit(habit) {
+    try {
+        const startDate = new Date()
+        await axios.post('http://localhost:8080/productivity/schedule/habit', {
+            habit_id: habit.ID,
+            start_date: startDate.toISOString(),
+            days: 7 // Schedule for next 7 days
+        })
+        
+        alert(`Habit "${habit.name}" scheduled for the next 7 days!`)
+    } catch (error) {
+        console.error('Error scheduling habit:', error)
+    }
+}
+
+async function scheduleAllHabits() {
+    try {
+        const startDate = new Date()
+        for (const habit of habits.value) {
+            await axios.post('http://localhost:8080/productivity/schedule/habit', {
+                habit_id: habit.ID,
+                start_date: startDate.toISOString(),
+                days: 7
+            })
+        }
+        alert('All habits scheduled for the next 7 days!')
+    } catch (error) {
+        console.error('Error scheduling habits:', error)
+    }
+}
+
+function getRandomColor() {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+    return colors[Math.floor(Math.random() * colors.length)]
 }
 
 onMounted(fetchHabits)
